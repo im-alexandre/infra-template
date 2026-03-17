@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Django Stack</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f2efe8;
+      --panel: #fffaf2;
+      --ink: #1f2933;
+      --accent: #bb5500;
+      --muted: #52606d;
+    }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top right, rgba(187, 85, 0, 0.18), transparent 35%),
+        linear-gradient(135deg, #f6f1e7, #e9e0d1);
+      color: var(--ink);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    main {
+      width: min(720px, 100%);
+      background: rgba(255, 250, 242, 0.92);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(31, 41, 51, 0.08);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 24px 80px rgba(31, 41, 51, 0.12);
+    }
+    h1 {
+      font-size: clamp(2.4rem, 4vw, 4rem);
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px 16px;
+      margin-top: 24px;
+    }
+    dt {
+      font-weight: 700;
+      color: var(--accent);
+    }
+    dd {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p>Stack pronta para deploy via Coolify.</p>
+    <h1>Django + PostgreSQL + Traefik</h1>
+    <p>Esta pagina confirma que a aplicacao Django subiu atras do proxy Traefik e esta lendo a configuracao do banco via variaveis de ambiente.</p>
+    <dl>
+      <dt>DEBUG</dt>
+      <dd>{{ debug }}</dd>
+      <dt>ALLOWED_HOSTS</dt>
+      <dd>{{ allowed_hosts }}</dd>
+      <dt>Banco</dt>
+      <dd>{{ database_host }}</dd>
+    </dl>
+  </main>
+</body>
+</html>
