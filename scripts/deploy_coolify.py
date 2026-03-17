@@ -94,20 +94,37 @@ class CoolifyClient:
 
 
 def build_application_payload() -> dict[str, Any]:
+    domain = required_env("DOMAIN")
     payload = {
         "project_uuid": required_env("COOLIFY_PROJECT_UUID"),
+        "server_uuid": required_env("COOLIFY_SERVER_UUID"),
+        "environment_name": required_env("COOLIFY_ENVIRONMENT_NAME"),
         "environment_uuid": required_env("COOLIFY_ENVIRONMENT_UUID"),
         "destination_uuid": required_env("COOLIFY_DESTINATION_UUID"),
         "name": os.getenv("COOLIFY_APP_NAME", "infra_template"),
         "description": os.getenv("COOLIFY_APP_DESCRIPTION", "infra_template - Django app"),
-        "repository_project_url": required_env("COOLIFY_GIT_REPOSITORY"),
-        "branch": os.getenv("COOLIFY_GIT_BRANCH", "main"),
+        "git_repository": required_env("COOLIFY_GIT_REPOSITORY"),
+        "git_branch": os.getenv("COOLIFY_GIT_BRANCH", "main"),
         "git_type": os.getenv("COOLIFY_GIT_TYPE", "public"),
         "build_pack": os.getenv("COOLIFY_BUILD_PACK", "dockerfile"),
         "dockerfile_location": os.getenv("COOLIFY_DOCKERFILE_LOCATION", "/Dockerfile"),
         "base_directory": os.getenv("COOLIFY_BASE_DIRECTORY", "/"),
         "ports_exposes": os.getenv("COOLIFY_APP_PORT", "8000"),
         "publish_directory": os.getenv("COOLIFY_PUBLISH_DIRECTORY", ""),
+        "domains": f"https://{domain}",
+        "health_check_enabled": True,
+        "health_check_path": "/healthz/",
+        "health_check_port": os.getenv("COOLIFY_APP_PORT", "8000"),
+        "health_check_host": "127.0.0.1",
+        "health_check_method": "GET",
+        "health_check_return_code": 200,
+        "health_check_scheme": "http",
+        "health_check_interval": 10,
+        "health_check_timeout": 5,
+        "health_check_retries": 15,
+        "health_check_start_period": 30,
+        "is_force_https_enabled": True,
+        "redirect": "both",
         "instant_deploy": False,
     }
     private_key_uuid = os.getenv("COOLIFY_PRIVATE_KEY_UUID", "").strip()
@@ -120,7 +137,9 @@ def build_application_payload() -> dict[str, Any]:
 
 def build_database_payload() -> dict[str, Any]:
     return {
+        "server_uuid": required_env("COOLIFY_SERVER_UUID"),
         "project_uuid": required_env("COOLIFY_PROJECT_UUID"),
+        "environment_name": required_env("COOLIFY_ENVIRONMENT_NAME"),
         "environment_uuid": required_env("COOLIFY_ENVIRONMENT_UUID"),
         "destination_uuid": required_env("COOLIFY_DESTINATION_UUID"),
         "name": os.getenv("COOLIFY_DATABASE_NAME", "infra-template-db"),
@@ -128,9 +147,9 @@ def build_database_payload() -> dict[str, Any]:
         "postgres_user": required_env("POSTGRES_USER"),
         "postgres_password": required_env("POSTGRES_PASSWORD"),
         "postgres_db": required_env("POSTGRES_DB"),
-        "postgres_port": int(os.getenv("POSTGRES_PORT", "5432")),
         "is_public": env_bool("COOLIFY_DATABASE_IS_PUBLIC", False),
         "public_port": int(os.getenv("COOLIFY_DATABASE_PUBLIC_PORT", "5432")),
+        "instant_deploy": False,
     }
 
 
