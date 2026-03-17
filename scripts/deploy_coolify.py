@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
+from github import Github
+from github.GithubException import GithubException
 
 from pathlib import Path
 
@@ -35,6 +38,133 @@ def normalize_git_repository(value: str) -> str:
             path = path[:-4]
         return path
     return value
+
+
+def get_so_token() -> str | None:
+    try:
+        return subprocess.check_output(["gh", "auth", "token"], text=True).strip()
+    except Exception:
+        print("Certifique-se de que o GitHub CLI esta instalado e logado (gh auth login).", file=sys.stderr)
+        return None
+
+
+def get_current_directory_name() -> str:
+    return os.getcwd().replace("\\", "/").rstrip("/").split("/")[-1]
+
+
+def update_env_file(updates: dict[str, str]) -> None:
+    env_path = ROOT_DIR / ".env"
+    if not env_path.exists():
+        return
+
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    seen: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in lines:
+        if "=" not in line or line.lstrip().startswith("#"):
+            new_lines.append(line)
+            continue
+        key, _ = line.split("=", 1)
+        if key in updates:
+            new_lines.append(f"{key}={updates[key]}")
+            seen.add(key)
+        else:
+            new_lines.append(line)
+
+    for key, value in updates.items():
+        if key not in seen:
+            new_lines.append(f"{key}={value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+def run_git_command(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, cwd=cwd, text=True, check=check, capture_output=True)
+
+
+def ensure_git_repository_initialized(cwd: Path) -> None:
+    if not (cwd / ".git").exists():
+        run_git_command(["git", "init"], cwd)
+        run_git_command(["git", "branch", "-M", "main"], cwd)
+
+
+def ensure_initial_commit(cwd: Path, message: str) -> None:
+    run_git_command(["git", "add", "-A"], cwd)
+    status = run_git_command(["git", "status", "--short"], cwd)
+    if not status.stdout.strip():
+        return
+    try:
+        run_git_command(["git", "commit", "-m", message], cwd)
+    except subprocess.CalledProcessError as exc:
+        combined = f"{exc.stdout}\n{exc.stderr}".strip()
+        if "nothing to commit" not in combined.lower():
+            raise
+
+
+def ensure_branch_main(cwd: Path) -> None:
+    run_git_command(["git", "branch", "-M", "main"], cwd)
+
+
+def ensure_remote(cwd: Path, name: str, url: str) -> None:
+    remotes = run_git_command(["git", "remote"], cwd)
+    remote_names = {item.strip() for item in remotes.stdout.splitlines() if item.strip()}
+    if name in remote_names:
+        run_git_command(["git", "remote", "set-url", name, url], cwd)
+    else:
+        run_git_command(["git", "remote", "add", name, url], cwd)
+
+
+def bootstrap_github_repository(private: bool) -> str:
+    token = get_so_token()
+    if not token:
+        raise RuntimeError("Nao foi possivel obter o token do GitHub CLI.")
+
+    try:
+        from github import Auth
+
+        github_client = Github(auth=Auth.Token(token))
+    except (ImportError, AttributeError):
+        github_client = Github(token)
+    user = github_client.get_user()
+    login = user.login
+    repo_name = get_current_directory_name()
+    print(f"Autenticado via SO como: {login}")
+
+    try:
+        repo = user.create_repo(
+            name=repo_name,
+            private=private,
+            description=f"{repo_name} bootstrapado pelo deploy_coolify.py",
+        )
+        print(f"Repositorio GitHub criado: {repo.html_url}")
+    except GithubException as exc:
+        if exc.status == 422:
+            repo = user.get_repo(repo_name)
+            print(f"Repositorio GitHub ja existe: {repo.html_url}")
+        else:
+            raise RuntimeError(f"Erro ao criar repositorio GitHub: {exc.data}") from exc
+
+    cwd = Path(os.getcwd())
+    ensure_git_repository_initialized(cwd)
+    ensure_branch_main(cwd)
+    ensure_initial_commit(cwd, "Initial commit")
+
+    remote_url = repo.clone_url
+    ensure_remote(cwd, "origin", remote_url)
+
+    try:
+        run_git_command(["git", "push", "-u", "origin", "main"], cwd)
+    except subprocess.CalledProcessError as exc:
+        combined = f"{exc.stdout}\n{exc.stderr}".strip()
+        if "set up to track" not in combined.lower() and "everything up-to-date" not in combined.lower():
+            raise RuntimeError(f"Erro ao fazer push inicial: {combined}") from exc
+
+    full_name = repo.full_name
+    os.environ["COOLIFY_GIT_REPOSITORY"] = full_name
+    update_env_file({"COOLIFY_GIT_REPOSITORY": full_name})
+    print(f"Repositorio sincronizado e salvo no .env: {full_name}")
+    return full_name
 
 
 class CoolifyClient:
@@ -284,6 +414,8 @@ def maybe_create_database(client: CoolifyClient) -> tuple[str | None, str | None
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Deploy Django via Git na API do Coolify.")
+    parser.add_argument("--bootstrap-github", action="store_true", help="Cria o repositorio remoto no GitHub com o nome da pasta atual e faz o primeiro push.")
+    parser.add_argument("--github-private", action="store_true", help="Usa repositorio privado ao combinar com --bootstrap-github.")
     parser.add_argument("--dry-run", action="store_true", help="Mostra os payloads sem chamar a API.")
     parser.add_argument("--skip-start", action="store_true", help="Nao dispara start ao final.")
     parser.add_argument("--skip-database", action="store_true", help="Nao cria nem inicia o PostgreSQL no Coolify.")
@@ -293,6 +425,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+
+    if args.bootstrap_github:
+        bootstrap_github_repository(private=args.github_private)
+
     application_payload = build_application_payload()
     database_payload = build_database_payload()
     postgres_host_override = os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or None

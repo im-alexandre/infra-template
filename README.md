@@ -49,6 +49,22 @@ O deploy remoto usa a API do Coolify para criar ou atualizar uma aplicacao apont
 python scripts/deploy_coolify.py
 ```
 
+### Bootstrap do repo GitHub
+
+Se quiser que o proprio script crie o repositorio remoto com o nome da pasta atual, faca o primeiro commit e o primeiro push:
+
+```bash
+python scripts/deploy_coolify.py --bootstrap-github
+```
+
+Para criar o repositorio como privado:
+
+```bash
+python scripts/deploy_coolify.py --bootstrap-github --github-private
+```
+
+Esse fluxo usa o token do `gh auth token`, atualiza `COOLIFY_GIT_REPOSITORY` no `.env` e depois segue com o deploy.
+
 ### Dry run
 
 ```bash
