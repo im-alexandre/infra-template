@@ -61,7 +61,7 @@ class CoolifyClient:
         return self.get_json("/applications")
 
     def create_application(self, payload: dict[str, Any]) -> dict[str, Any]:
-        git_type = payload["git_type"]
+        git_type = os.getenv("COOLIFY_GIT_TYPE", "public")
         if git_type == "public":
             return self.post_json("/applications/public", payload)
         if git_type == "private-deploy-key":
