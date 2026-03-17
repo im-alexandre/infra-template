@@ -118,6 +118,19 @@ class CoolifyClient:
         return self.get_json(f"/databases/{database_uuid}/start")
 
 
+def print_already_running_or_raise(exc: requests.HTTPError) -> None:
+    response = exc.response
+    body = response.text if response is not None else ""
+    if response is not None and response.status_code == 400 and "already running" in body.lower():
+        try:
+            payload = response.json()
+            print(payload.get("message", "Recurso ja estava em execucao."))
+        except ValueError:
+            print("Recurso ja estava em execucao.")
+        return
+    raise exc
+
+
 def build_application_payload() -> dict[str, Any]:
     domain = required_env("DOMAIN")
     payload = {
@@ -289,8 +302,11 @@ def main() -> int:
                 application_envs = desired_application_envs(postgres_host)
                 print(f"Host interno do PostgreSQL detectado: {postgres_host}")
             if database_uuid and not args.skip_start:
-                db_result = client.start_database(database_uuid)
-                print(db_result.get("message", "Start do banco solicitado."))
+                try:
+                    db_result = client.start_database(database_uuid)
+                    print(db_result.get("message", "Start do banco solicitado."))
+                except requests.HTTPError as exc:
+                    print_already_running_or_raise(exc)
 
         application_uuid, application_message = upsert_application(client, application_payload)
         print(application_message)
@@ -304,8 +320,11 @@ def main() -> int:
             )
 
         if not args.skip_start:
-            app_result = client.start_application(application_uuid)
-            print(app_result.get("message", "Start da aplicacao solicitado."))
+            try:
+                app_result = client.start_application(application_uuid)
+                print(app_result.get("message", "Start da aplicacao solicitado."))
+            except requests.HTTPError as exc:
+                print_already_running_or_raise(exc)
     except requests.HTTPError as exc:
         body = exc.response.text if exc.response is not None else ""
         print(f"Erro HTTP ao falar com o Coolify: {exc}\n{body}", file=sys.stderr)
