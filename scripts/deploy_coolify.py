@@ -157,21 +157,24 @@ def desired_application_envs(postgres_host_override: str | None = None) -> list[
     allowed_hosts = os.getenv("DJANGO_ALLOWED_HOSTS", public_domain)
     postgres_host = postgres_host_override or os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or os.getenv("POSTGRES_HOST", "").strip()
 
+    def env_payload(key: str, value: str) -> dict[str, Any]:
+        return {"key": key, "value": value, "is_preview": False, "is_literal": False}
+
     envs = [
-        {"key": "DJANGO_SECRET_KEY", "value": required_env("DJANGO_SECRET_KEY"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_DEBUG", "value": os.getenv("DJANGO_DEBUG", "False"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_ALLOWED_HOSTS", "value": allowed_hosts, "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_CSRF_TRUSTED_ORIGINS", "value": csrf_origins, "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_SUPERUSER_USERNAME", "value": required_env("DJANGO_SUPERUSER_USERNAME"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_SUPERUSER_EMAIL", "value": required_env("DJANGO_SUPERUSER_EMAIL"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "DJANGO_SUPERUSER_PASSWORD", "value": required_env("DJANGO_SUPERUSER_PASSWORD"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "POSTGRES_DB", "value": required_env("POSTGRES_DB"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "POSTGRES_USER", "value": required_env("POSTGRES_USER"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "POSTGRES_PASSWORD", "value": required_env("POSTGRES_PASSWORD"), "is_preview": False, "is_build_time": False, "is_literal": False},
-        {"key": "POSTGRES_PORT", "value": os.getenv("POSTGRES_PORT", "5432"), "is_preview": False, "is_build_time": False, "is_literal": False},
+        env_payload("DJANGO_SECRET_KEY", required_env("DJANGO_SECRET_KEY")),
+        env_payload("DJANGO_DEBUG", os.getenv("DJANGO_DEBUG", "False")),
+        env_payload("DJANGO_ALLOWED_HOSTS", allowed_hosts),
+        env_payload("DJANGO_CSRF_TRUSTED_ORIGINS", csrf_origins),
+        env_payload("DJANGO_SUPERUSER_USERNAME", required_env("DJANGO_SUPERUSER_USERNAME")),
+        env_payload("DJANGO_SUPERUSER_EMAIL", required_env("DJANGO_SUPERUSER_EMAIL")),
+        env_payload("DJANGO_SUPERUSER_PASSWORD", required_env("DJANGO_SUPERUSER_PASSWORD")),
+        env_payload("POSTGRES_DB", required_env("POSTGRES_DB")),
+        env_payload("POSTGRES_USER", required_env("POSTGRES_USER")),
+        env_payload("POSTGRES_PASSWORD", required_env("POSTGRES_PASSWORD")),
+        env_payload("POSTGRES_PORT", os.getenv("POSTGRES_PORT", "5432")),
     ]
     if postgres_host:
-        envs.append({"key": "POSTGRES_HOST", "value": postgres_host, "is_preview": False, "is_build_time": False, "is_literal": False})
+        envs.append(env_payload("POSTGRES_HOST", postgres_host))
     return envs
 
 
