@@ -74,6 +74,8 @@ class CoolifyClient:
         git_type = os.getenv("COOLIFY_GIT_TYPE", "public")
         if git_type == "public":
             return self.post_json("/applications/public", payload)
+        if git_type == "private-github-app":
+            return self.post_json("/applications/private-github-app", payload)
         if git_type == "private-deploy-key":
             return self.post_json("/applications/private-deploy-key", payload)
         raise RuntimeError(f"Tipo de repositiorio nao suportado: {git_type}")
@@ -115,11 +117,14 @@ class CoolifyClient:
     def create_application_env(self, application_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self.post_json(f"/applications/{application_uuid}/envs", payload)
 
-    def update_application_env(self, env_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.patch_json(f"/envs/{env_uuid}", payload)
+    def update_application_envs_bulk(self, application_uuid: str, payloads: list[dict[str, Any]]) -> Any:
+        return self.patch_json(f"/applications/{application_uuid}/envs/bulk", {"data": payloads})
 
     def list_databases(self) -> list[dict[str, Any]]:
         return self.get_json("/databases")
+
+    def list_github_apps(self) -> list[dict[str, Any]]:
+        return self.get_json("/github-apps")
 
     def create_postgresql_database(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.post_json("/databases/postgresql", payload)
@@ -143,6 +148,7 @@ def print_already_running_or_raise(exc: requests.HTTPError) -> None:
 
 def build_application_payload() -> dict[str, Any]:
     domain = required_env("DOMAIN")
+    git_type = os.getenv("COOLIFY_GIT_TYPE", "public")
     payload = {
         "project_uuid": required_env("COOLIFY_PROJECT_UUID"),
         "server_uuid": required_env("COOLIFY_SERVER_UUID"),
@@ -173,7 +179,11 @@ def build_application_payload() -> dict[str, Any]:
         "instant_deploy": False,
     }
     private_key_uuid = os.getenv("COOLIFY_PRIVATE_KEY_UUID", "").strip()
-    git_type = os.getenv("COOLIFY_GIT_TYPE", "public")
+    github_app_uuid = os.getenv("COOLIFY_GITHUB_APP_UUID", "").strip()
+    if git_type == "private-github-app":
+        if not github_app_uuid:
+            raise RuntimeError("COOLIFY_GITHUB_APP_UUID e obrigatoria para git privado com GitHub App.")
+        payload["github_app_uuid"] = github_app_uuid
     if git_type == "private-deploy-key":
         if not private_key_uuid:
             raise RuntimeError("COOLIFY_PRIVATE_KEY_UUID e obrigatoria para git privado com deploy key.")
@@ -206,7 +216,14 @@ def desired_application_envs(postgres_host_override: str | None = None) -> list[
     postgres_host = postgres_host_override or os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or os.getenv("POSTGRES_HOST", "").strip()
 
     def env_payload(key: str, value: str) -> dict[str, Any]:
-        return {"key": key, "value": value, "is_preview": False, "is_literal": False}
+        return {
+            "key": key,
+            "value": value,
+            "is_preview": False,
+            "is_literal": False,
+            "is_multiline": False,
+            "is_shown_once": False,
+        }
 
     envs = [
         env_payload("DJANGO_SECRET_KEY", required_env("DJANGO_SECRET_KEY")),
@@ -239,14 +256,7 @@ def upsert_application(client: CoolifyClient, payload: dict[str, Any]) -> tuple[
 
 
 def upsert_application_envs(client: CoolifyClient, application_uuid: str, envs: list[dict[str, Any]]) -> None:
-    existing_envs = client.list_application_envs(application_uuid)
-    existing_by_key = {item["key"]: item for item in existing_envs}
-    for env_payload in envs:
-        current = existing_by_key.get(env_payload["key"])
-        if current:
-            client.update_application_env(current["uuid"], env_payload)
-        else:
-            client.create_application_env(application_uuid, env_payload)
+    client.update_application_envs_bulk(application_uuid, envs)
 
 
 def parse_internal_postgres_host(database: dict[str, Any]) -> str | None:
@@ -277,6 +287,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="Mostra os payloads sem chamar a API.")
     parser.add_argument("--skip-start", action="store_true", help="Nao dispara start ao final.")
     parser.add_argument("--skip-database", action="store_true", help="Nao cria nem inicia o PostgreSQL no Coolify.")
+    parser.add_argument("--list-github-apps", action="store_true", help="Lista as integracoes GitHub App disponiveis no Coolify.")
     return parser.parse_args()
 
 
@@ -301,6 +312,21 @@ def main() -> int:
         base_url=os.getenv("COOLIFY_BASE_URL", "https://coolify.drg.ink"),
         token=required_env("COOLIFY_API_TOKEN"),
     )
+
+    if args.list_github_apps:
+        apps = client.list_github_apps()
+        for app in apps:
+            print(
+                json.dumps(
+                    {
+                        "uuid": app.get("uuid"),
+                        "name": app.get("name"),
+                        "organization": app.get("organization"),
+                        "is_public": app.get("is_public"),
+                    }
+                )
+            )
+        return 0
 
     try:
         database_uuid = None

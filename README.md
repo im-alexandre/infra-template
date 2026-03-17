@@ -38,6 +38,8 @@ O deploy remoto usa a API do Coolify para criar ou atualizar uma aplicacao apont
    - `TRAEFIK_DASHBOARD_HOST` com o dominio do dashboard do Traefik, se for expor.
    - `COOLIFY_GIT_REPOSITORY` com o repositorio no formato `owner/repo` para GitHub.
    - `COOLIFY_GIT_BRANCH` com a branch de deploy.
+   - `COOLIFY_GIT_TYPE` com `public`, `private-github-app` ou `private-deploy-key`.
+   - `COOLIFY_GITHUB_APP_UUID` se for usar uma GitHub App ja cadastrada no Coolify para repositos privados.
    - `COOLIFY_PROJECT_UUID`
    - `COOLIFY_ENVIRONMENT_UUID`
    - `COOLIFY_DESTINATION_UUID`
@@ -54,6 +56,17 @@ python scripts/deploy_coolify.py --dry-run
 ```
 
 O script cria ou atualiza a aplicacao Git no Coolify, sincroniza as variaveis de ambiente e pode opcionalmente criar um PostgreSQL pelo proprio Coolify.
+
+### Repo privado com GitHub App do Coolify
+
+1. Configure `COOLIFY_GIT_TYPE=private-github-app`.
+2. Preencha `COOLIFY_GITHUB_APP_UUID` com a integracao ja existente no Coolify.
+3. Mantenha `COOLIFY_GIT_REPOSITORY` no formato `owner/repo`.
+4. Se quiser listar as GitHub Apps disponiveis na sua instancia:
+
+```bash
+python scripts/deploy_coolify.py --list-github-apps
+```
 
 ## Referencias
 
