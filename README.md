@@ -84,6 +84,17 @@ O script cria ou atualiza a aplicacao Git no Coolify, sincroniza as variaveis de
 python scripts/deploy_coolify.py --list-github-apps
 ```
 
+## Destruir Projeto no Coolify
+
+Para apagar o projeto configurado em `COOLIFY_PROJECT_UUID` e tudo que estiver dentro dele:
+
+```bash
+python scripts/destroy_coolify_project.py --dry-run
+python scripts/destroy_coolify_project.py --yes
+```
+
+Esse script nao toca no repositório GitHub.
+
 ## Referencias
 
 - Coolify API Reference: https://coolify.io/docs/api-reference/api/
