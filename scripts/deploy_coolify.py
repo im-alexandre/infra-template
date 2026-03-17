@@ -105,9 +105,7 @@ def build_application_payload() -> dict[str, Any]:
         "description": os.getenv("COOLIFY_APP_DESCRIPTION", "infra_template - Django app"),
         "git_repository": required_env("COOLIFY_GIT_REPOSITORY"),
         "git_branch": os.getenv("COOLIFY_GIT_BRANCH", "main"),
-        "git_type": os.getenv("COOLIFY_GIT_TYPE", "public"),
         "build_pack": os.getenv("COOLIFY_BUILD_PACK", "dockerfile"),
-        "dockerfile_location": os.getenv("COOLIFY_DOCKERFILE_LOCATION", "/Dockerfile"),
         "base_directory": os.getenv("COOLIFY_BASE_DIRECTORY", "/"),
         "ports_exposes": os.getenv("COOLIFY_APP_PORT", "8000"),
         "publish_directory": os.getenv("COOLIFY_PUBLISH_DIRECTORY", ""),
@@ -123,12 +121,12 @@ def build_application_payload() -> dict[str, Any]:
         "health_check_timeout": 5,
         "health_check_retries": 15,
         "health_check_start_period": 30,
-        "is_force_https_enabled": True,
         "redirect": "both",
         "instant_deploy": False,
     }
     private_key_uuid = os.getenv("COOLIFY_PRIVATE_KEY_UUID", "").strip()
-    if payload["git_type"] == "private-deploy-key":
+    git_type = os.getenv("COOLIFY_GIT_TYPE", "public")
+    if git_type == "private-deploy-key":
         if not private_key_uuid:
             raise RuntimeError("COOLIFY_PRIVATE_KEY_UUID e obrigatoria para git privado com deploy key.")
         payload["private_key_uuid"] = private_key_uuid
