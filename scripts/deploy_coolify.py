@@ -27,6 +27,16 @@ def env_bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def normalize_git_repository(value: str) -> str:
+    value = value.strip()
+    if value.startswith("https://github.com/"):
+        path = value.removeprefix("https://github.com/").strip("/")
+        if path.endswith(".git"):
+            path = path[:-4]
+        return path
+    return value
+
+
 class CoolifyClient:
     def __init__(self, base_url: str, token: str) -> None:
         self.base_url = base_url.rstrip("/")
@@ -141,7 +151,7 @@ def build_application_payload() -> dict[str, Any]:
         "destination_uuid": required_env("COOLIFY_DESTINATION_UUID"),
         "name": os.getenv("COOLIFY_APP_NAME", "infra_template"),
         "description": os.getenv("COOLIFY_APP_DESCRIPTION", "infra_template - Django app"),
-        "git_repository": required_env("COOLIFY_GIT_REPOSITORY"),
+        "git_repository": normalize_git_repository(required_env("COOLIFY_GIT_REPOSITORY")),
         "git_branch": os.getenv("COOLIFY_GIT_BRANCH", "main"),
         "build_pack": os.getenv("COOLIFY_BUILD_PACK", "dockerfile"),
         "base_directory": os.getenv("COOLIFY_BASE_DIRECTORY", "/"),

@@ -36,7 +36,7 @@ O deploy remoto usa a API do Coolify para criar ou atualizar uma aplicacao apont
    - `COOLIFY_BASE_URL` com a URL da instancia. O default do projeto e `https://coolify.drg.ink`.
    - `DOMAIN` com o dominio publico da aplicacao no Traefik e no Coolify.
    - `TRAEFIK_DASHBOARD_HOST` com o dominio do dashboard do Traefik, se for expor.
-   - `COOLIFY_GIT_REPOSITORY` com a URL do repositorio Git.
+   - `COOLIFY_GIT_REPOSITORY` com o repositorio no formato `owner/repo` para GitHub.
    - `COOLIFY_GIT_BRANCH` com a branch de deploy.
    - `COOLIFY_PROJECT_UUID`
    - `COOLIFY_ENVIRONMENT_UUID`
