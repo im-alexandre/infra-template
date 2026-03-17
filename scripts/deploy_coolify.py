@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -133,11 +134,11 @@ def build_database_payload() -> dict[str, Any]:
     }
 
 
-def desired_application_envs() -> list[dict[str, Any]]:
+def desired_application_envs(postgres_host_override: str | None = None) -> list[dict[str, Any]]:
     public_domain = required_env("DOMAIN")
     csrf_origins = os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", f"https://{public_domain}")
     allowed_hosts = os.getenv("DJANGO_ALLOWED_HOSTS", public_domain)
-    postgres_host = os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or os.getenv("POSTGRES_HOST", "").strip()
+    postgres_host = postgres_host_override or os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or os.getenv("POSTGRES_HOST", "").strip()
 
     envs = [
         {"key": "DJANGO_SECRET_KEY", "value": required_env("DJANGO_SECRET_KEY"), "is_preview": False, "is_build_time": False, "is_literal": False},
@@ -180,17 +181,27 @@ def upsert_application_envs(client: CoolifyClient, application_uuid: str, envs: 
             client.create_application_env(application_uuid, env_payload)
 
 
-def maybe_create_database(client: CoolifyClient) -> tuple[str | None, str | None]:
+def parse_internal_postgres_host(database: dict[str, Any]) -> str | None:
+    internal_db_url = database.get("internal_db_url")
+    if not internal_db_url:
+        return None
+    parsed = urlparse(internal_db_url)
+    return parsed.hostname
+
+
+def maybe_create_database(client: CoolifyClient) -> tuple[str | None, str | None, str | None]:
     if not env_bool("COOLIFY_CREATE_POSTGRES", False):
-        return None, None
+        return None, None, None
 
     database_name = os.getenv("COOLIFY_DATABASE_NAME", "infra-template-db")
     existing = next((item for item in client.list_databases() if item.get("name") == database_name), None)
     if existing:
-        return existing["uuid"], f"Banco ja existe: {existing['uuid']}"
+        return existing["uuid"], f"Banco ja existe: {existing['uuid']}", parse_internal_postgres_host(existing)
 
     created = client.create_postgresql_database(build_database_payload())
-    return created["uuid"], f"Banco criado: {created['uuid']}"
+    database_uuid = created["uuid"]
+    refreshed = next((item for item in client.list_databases() if item.get("uuid") == database_uuid), created)
+    return database_uuid, f"Banco criado: {database_uuid}", parse_internal_postgres_host(refreshed)
 
 
 def parse_args() -> argparse.Namespace:
@@ -204,8 +215,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     application_payload = build_application_payload()
-    application_envs = desired_application_envs()
     database_payload = build_database_payload()
+    postgres_host_override = os.getenv("COOLIFY_POSTGRES_HOST", "").strip() or None
+    application_envs = desired_application_envs(postgres_host_override)
 
     if args.dry_run:
         output = {
@@ -218,16 +230,19 @@ def main() -> int:
         return 0
 
     client = CoolifyClient(
-        base_url=os.getenv("COOLIFY_BASE_URL", "https://drg.ink"),
+        base_url=os.getenv("COOLIFY_BASE_URL", "https://coolify.drg.ink"),
         token=required_env("COOLIFY_API_TOKEN"),
     )
 
     try:
         database_uuid = None
         if not args.skip_database:
-            database_uuid, database_message = maybe_create_database(client)
+            database_uuid, database_message, postgres_host = maybe_create_database(client)
             if database_message:
                 print(database_message)
+            if postgres_host:
+                application_envs = desired_application_envs(postgres_host)
+                print(f"Host interno do PostgreSQL detectado: {postgres_host}")
             if database_uuid and not args.skip_start:
                 db_result = client.start_database(database_uuid)
                 print(db_result.get("message", "Start do banco solicitado."))
@@ -237,7 +252,7 @@ def main() -> int:
         upsert_application_envs(client, application_uuid, application_envs)
         print("Variaveis da aplicacao sincronizadas.")
 
-        if not os.getenv("COOLIFY_POSTGRES_HOST", "").strip():
+        if not (postgres_host_override or (not args.skip_database and postgres_host)):
             print(
                 "Aviso: COOLIFY_POSTGRES_HOST nao esta definido. "
                 "Se o host interno do Postgres no Coolify for diferente de POSTGRES_HOST, ajuste no .env antes do start."
