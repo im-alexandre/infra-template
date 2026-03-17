@@ -69,7 +69,32 @@ class CoolifyClient:
         raise RuntimeError(f"Tipo de repositiorio nao suportado: {git_type}")
 
     def update_application(self, application_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.patch_json(f"/applications/{application_uuid}", payload)
+        allowed_fields = {
+            "name",
+            "description",
+            "git_repository",
+            "git_branch",
+            "build_pack",
+            "base_directory",
+            "ports_exposes",
+            "publish_directory",
+            "domains",
+            "health_check_enabled",
+            "health_check_path",
+            "health_check_port",
+            "health_check_host",
+            "health_check_method",
+            "health_check_return_code",
+            "health_check_scheme",
+            "health_check_interval",
+            "health_check_timeout",
+            "health_check_retries",
+            "health_check_start_period",
+            "redirect",
+            "instant_deploy",
+        }
+        filtered_payload = {key: value for key, value in payload.items() if key in allowed_fields}
+        return self.patch_json(f"/applications/{application_uuid}", filtered_payload)
 
     def start_application(self, application_uuid: str) -> dict[str, Any]:
         return self.get_json(f"/applications/{application_uuid}/start")
